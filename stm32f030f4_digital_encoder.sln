@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28010.2050
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stm32f030f4_digital_encoder", "stm32f030f4_digital_encoder\stm32f030f4_digital_encoder.vcxproj", "{DF6C65EE-1D31-4CF9-8ABD-E145586A236C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|VisualGDB = Debug|VisualGDB
+		Release|VisualGDB = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DF6C65EE-1D31-4CF9-8ABD-E145586A236C}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
+		{DF6C65EE-1D31-4CF9-8ABD-E145586A236C}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
+		{DF6C65EE-1D31-4CF9-8ABD-E145586A236C}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
+		{DF6C65EE-1D31-4CF9-8ABD-E145586A236C}.Release|VisualGDB.Build.0 = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8A5ECD97-BE57-4BB2-92A9-623F3D01CEC3}
+	EndGlobalSection
+EndGlobal
