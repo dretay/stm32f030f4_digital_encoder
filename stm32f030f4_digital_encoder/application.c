@@ -12,6 +12,7 @@ static volatile bool dirty = false;
 static bool xmit = false;
 
 #define ENCODER_AND_SWITCH_QUERY 0x00
+#define ENCODER_AND_SWITCH_RESET  0x01
 
 #define UART_BUFFER_SIZE 32
 static char uart_tx_buffer[UART_BUFFER_SIZE];
@@ -60,9 +61,7 @@ static void poll_irq_attn_status(void)
 
 	}
 	else if (irq_attn_status == PENDING_OFF)
-	{
-
-		
+	{		
 		println("lowering IRQ pin");
 		HAL_Delay(100);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
@@ -113,7 +112,7 @@ static void run(void)
 	while (true)
 	{	
 		println("waiting for i2c cmd");
-
+		xmit = false;
 		//recieve data from master
 		if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)i2c_rx_buffer, I2C_RX_BUFFER_SIZE) != HAL_OK)
 		{		
@@ -124,14 +123,17 @@ static void run(void)
 
 		switch (i2c_rx_buffer[0]) 
 		{
-		case ENCODER_AND_SWITCH_QUERY:
-
-			
+		case ENCODER_AND_SWITCH_QUERY:			
 			println("encoder dump cmd rcvd");
 			i2c_tx_buffer[0] = (encoder_val >> 8) & 0xFF;
 			i2c_tx_buffer[1] = encoder_val & 0xFF;
 			i2c_tx_buffer[2] = switch_val;
 			xmit = true;
+			break;
+
+		case ENCODER_AND_SWITCH_RESET:			
+			println("encoder RESET cmd rcvd");
+			TIM3->CNT = 0;
 			break;
 
 		default:			
