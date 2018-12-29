@@ -488,6 +488,9 @@
     <ClInclude Include="..\Inc\stm32f0xx_hal_conf.h">
       <Filter>Header files</Filter>
     </ClInclude>
+    <ClInclude Include="minmax.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application.c">
