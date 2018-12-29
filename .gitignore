@@ -5,3 +5,7 @@
 /.vs/stm32f030f4_digital_encoder/v15
 /VisualGDB
 /Drivers
+/stm32f030f4_digital_encoder/VisualGDB/Release
+/stm32f030f4_digital_encoder/VisualGDB/VisualGDBCache/stm32f030f4_digital_encoder-Release/MemoryUtilizationReport.xml
+/stm32f030f4_digital_encoder/VisualGDB/Debug
+/stm32f030f4_digital_encoder/VisualGDB/VisualGDBCache/stm32f030f4_digital_encoder-Debug/MemoryUtilizationReport.xml
