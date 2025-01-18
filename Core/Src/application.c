@@ -95,6 +95,10 @@ static void busy_wait_loop(void)
 	static short temp_encoder_val;
 	while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY)
 	{
+		HAL_I2C_StateTypeDef state = HAL_I2C_GetState(&hi2c1);
+		if(state == HAL_I2C_STATE_READY){
+			asm("nop");
+		}
 		raw_encoder_val = TIM3->CNT;
 		temp_encoder_val = raw_encoder_val > SHRT_MAX ? (raw_encoder_val+ 2 - USHRT_MAX)>>2 : raw_encoder_val>>2;
 		if (temp_encoder_val != encoder_val)
