@@ -26,6 +26,9 @@ static uint8_t txBuffDataSize = 0;
 #define GET_ENCODER		0x08
 static uint8_t requestedReg;
 
+static short encoder_val = 0;
+static volatile bool switch_val = false;
+
 static void init(){
 	//start encoder timer
 	HAL_Delay(100);
@@ -34,8 +37,15 @@ static void init(){
 	slaveMode = MODE_LISTENING;
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 }
-static short encoder_val = 0;
-static volatile bool switch_val = false;
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if (GPIO_Pin == GPIO_PIN_1){
+		switch_val = !switch_val;
+		if(irqMode == MODE_IRQ_LOW){
+			irqMode = MODE_SET_HIGH;
+		}
+	}
+}
 
 static void run(void){
 	static unsigned short raw_encoder_val;
