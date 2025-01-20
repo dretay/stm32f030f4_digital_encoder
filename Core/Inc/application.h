@@ -1,11 +1,11 @@
 #pragma once
 
 #include <stdlib.h>
-
+#include<stdbool.h>
 #ifndef DEBUG
 #include <string.h>
 #endif
-
+#include "LOGGER.h"
 #include <stdbool.h>
 #include <limits.h>
 
@@ -16,11 +16,10 @@
 #include "minmax.h"
 
 extern TIM_HandleTypeDef htim3;
-extern UART_HandleTypeDef huart1;
 extern I2C_HandleTypeDef hi2c1;
-extern TIM_HandleTypeDef htim14;
 
 struct application {
+	void(*init)(void);
 	void(*run)(void);
 };
 

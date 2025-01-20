@@ -1,192 +1,143 @@
+/*
+ * TIM3 = rotary encoder timer
+ */
+
 #include "application.h"
 
-#define I2C_RX_BUFFER_SIZE  1
-static unsigned char i2c_rx_buffer[I2C_RX_BUFFER_SIZE];
+enum SLAVE_MODE_T {
+	MODE_RECEIVING,
+	MODE_TRANSMITTING,
+	MODE_LISTENING,
+} slaveMode;
+enum IRQ_PIN_MODE_T {
+	MODE_IRQ_LOW,
+	MODE_IRQ_HIGH,
+	MODE_SET_LOW,
+	MODE_SET_HIGH,
+} irqMode;
 
-#define I2C_TX_BUFFER_SIZE 4
-static unsigned char i2c_tx_buffer[I2C_TX_BUFFER_SIZE];
+#define BUFFER_SIZE		5
 
+static uint8_t rxBuff[BUFFER_SIZE] = {0};
+static uint8_t rxBuffDataSize = 0;
+
+static uint8_t txBuff[BUFFER_SIZE] = {0};
+static uint8_t txBuffDataSize = 0;
+#define GET_ENCODER		0x08
+static uint8_t requestedReg;
+
+static void init(){
+	//start encoder timer
+	HAL_Delay(100);
+	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+	HAL_I2C_EnableListen_IT(&hi2c1);
+	slaveMode = MODE_LISTENING;
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+}
 static short encoder_val = 0;
 static volatile bool switch_val = false;
-static volatile bool dirty = false;
-static bool xmit = false;
 
-#define ENCODER_AND_SWITCH_QUERY 0x00
-#define ENCODER_AND_SWITCH_RESET  0x01
-
-#define UART_BUFFER_SIZE 32
-static char uart_tx_buffer[UART_BUFFER_SIZE];
-static char* uart_tx_cr = "\r\n";
-
-enum IRQ_ATTN_STATUS
-{
-OFF = 0,
-PENDING_ON =1,
-PENDING_OFF=2,
-ON = 3
-};
-
-static enum IRQ_ATTN_STATUS irq_attn_status = OFF;
-
-//todo: for some reason I don't understand snprintf is messing with \r\n sequence... so
-//it needs to be echo'd separate from the string. if it becomes a problem maybe make this flaggable?
-static void println(char* line)
-{
-#ifndef DEBUG
-	int str_len = 0;
-	snprintf(uart_tx_buffer, UART_BUFFER_SIZE, "%s",line);
-	str_len = strcspn(uart_tx_buffer, "\0");
-	if (HAL_UART_Transmit(&huart1, (uint8_t*)line, str_len, 5000) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	if (HAL_UART_Transmit(&huart1, (uint8_t*)uart_tx_cr, 2, 5000) != HAL_OK)
-	{
-		Error_Handler();
-	}
-#endif
-}
-
-//check the state of irq_attn_status and flap pin if appropriate
-static void poll_irq_attn_status(void)
-{
-	if (irq_attn_status == PENDING_ON)
-	{
-
-		println("raising IRQ pin");
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-		irq_attn_status = ON;
-
-	}
-	else if (irq_attn_status == PENDING_OFF)
-	{
-		println("lowering IRQ pin");
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		irq_attn_status = OFF;
-
-	}
-}
-
-//make state change if data has become dirty
-static void set_dirty(void)
-{
-	if (irq_attn_status == OFF)
-	{
-		irq_attn_status = PENDING_ON;
-	}
-}
-
-//make state change if data has been xmitted to master
-static void unset_dirty(void)
-{
-	if (irq_attn_status == ON)
-	{
-		irq_attn_status = PENDING_OFF;
-	}
-}
-
-//loop for polling data structures when not busy with other stuff
-static void busy_wait_loop(void)
-{
+static void run(void){
 	static unsigned short raw_encoder_val;
 	static short temp_encoder_val;
-	while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY)
-	{
-		HAL_I2C_StateTypeDef state = HAL_I2C_GetState(&hi2c1);
-		if(state == HAL_I2C_STATE_READY){
-			asm("nop");
+	raw_encoder_val = TIM3->CNT;
+	temp_encoder_val = raw_encoder_val > SHRT_MAX ? (raw_encoder_val+ 2 - USHRT_MAX)>>2 : raw_encoder_val>>2;
+	if (temp_encoder_val != encoder_val){
+		encoder_val = temp_encoder_val;
+		if(irqMode == MODE_IRQ_LOW){
+			irqMode = MODE_SET_HIGH;
 		}
-		raw_encoder_val = TIM3->CNT;
-		temp_encoder_val = raw_encoder_val > SHRT_MAX ? (raw_encoder_val+ 2 - USHRT_MAX)>>2 : raw_encoder_val>>2;
-		if (temp_encoder_val != encoder_val)
-		{
-			encoder_val = temp_encoder_val;
-			set_dirty();
+	}
+	if(irqMode == MODE_SET_HIGH){
+		irqMode = MODE_IRQ_HIGH;
+		app_log_debug("raising IRQ pin");
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+	}
+	else if(irqMode == MODE_SET_LOW){
+		irqMode = MODE_IRQ_LOW;
+		app_log_debug("lowering IRQ pin");
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+	}
+}
+
+//Slave Address Match callback.
+void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode){
+	if (TransferDirection == I2C_DIRECTION_RECEIVE) {
+		app_log_debug("Addr callback Rx\r\n");
+		slaveMode = MODE_TRANSMITTING;
+		switch (requestedReg) {
+			case GET_ENCODER:
+				txBuff[0] = (encoder_val >> 8) & 0xFF;
+				txBuff[1] = encoder_val & 0xFF;
+				txBuff[2] = switch_val;
+				txBuffDataSize = 3;
+				break;
+			default:
+				txBuff[0] = 0xFF;
+				txBuff[1] = 0xFF;
+				txBuff[2] = 0xFF;
+				txBuffDataSize = 3;
+				break;
 		}
-		poll_irq_attn_status();
+
+		HAL_I2C_Slave_Seq_Transmit_IT(hi2c, txBuff, txBuffDataSize, I2C_LAST_FRAME);
+		irqMode = MODE_SET_LOW;
+		requestedReg = 0;
+
+	} else {
+		app_log_debug("Addr callback Tx\r\n");
+		slaveMode = MODE_RECEIVING;
+		HAL_I2C_Slave_Seq_Receive_IT(hi2c, rxBuff + rxBuffDataSize, 1, I2C_NEXT_FRAME);
 	}
 }
-
-//main application loop
-static void run(void)
-{
-
-	println("waiting for i2c cmd");
-	xmit = false;
-	//recieve data from master
-	if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)i2c_rx_buffer, I2C_RX_BUFFER_SIZE) != HAL_OK)
-	{
-		println("HAL_I2C_Slave_Receive_IT error");
-	}
-
-	busy_wait_loop();
-
-	switch (i2c_rx_buffer[0])
-	{
-	case ENCODER_AND_SWITCH_QUERY:
-		println("encoder dump cmd rcvd");
-		i2c_tx_buffer[0] = (encoder_val >> 8) & 0xFF;
-		i2c_tx_buffer[1] = encoder_val & 0xFF;
-		i2c_tx_buffer[2] = switch_val;
-		xmit = true;
-		break;
-
-	case ENCODER_AND_SWITCH_RESET:
-		println("encoder RESET cmd rcvd");
-		TIM3->CNT = 0;
-		break;
-
-	default:
-		println("default cmd case reached!");
-		i2c_tx_buffer[0] = 0xFF;
-		xmit = true;
-	}
-	if (xmit)
-	{
-		xmit = false;
-		println("xmit i2c response");
-		HAL_TIM_Base_Start_IT(&htim14);
-		if (HAL_I2C_Slave_Transmit_IT(&hi2c1, i2c_tx_buffer, I2C_TX_BUFFER_SIZE) != HAL_OK)
-		{
-			println("HAL_I2C_Slave_Transmit_IT error");
+//Callback when Listen mode has completed (STOP)
+void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c) {
+	app_log_debug("Listening callback\r\n");
+	slaveMode = MODE_LISTENING;
+	if (rxBuffDataSize == 1) {
+		/* Just want register value */
+		app_log_debug("Just register requested\r\n");
+		requestedReg = rxBuff[0];
+	} else if (rxBuffDataSize > 1) {
+		/* Data sent */
+		for (uint8_t i = 0; i != rxBuffDataSize; i++) {
+			app_log_debug("Rx Buff[%d]: %d\r\n", i, rxBuff[i]);
 		}
-		busy_wait_loop();
-		HAL_TIM_Base_Stop_IT(&htim14);
-		unset_dirty();
+//		requestedReg = rxBuff[0];
+//		fakeVoltage = (rxBuff[1] << 8 | rxBuff[2] & 0xFF);
+//		app_log_debug("Voltage set to %d\r\n", fakeVoltage);
 	}
 
+	memset(rxBuff, 0, BUFFER_SIZE);
+	rxBuffDataSize = 0;
+
+	HAL_I2C_EnableListen_IT(hi2c);
 }
 
-void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *I2cHandle)
-{
-	if (HAL_I2C_GetError(I2cHandle) != HAL_I2C_ERROR_AF)
-	{
-		Error_Handler();
+//Callback when Receive complete (master -> slave)
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c) {
+	app_log_debug("Rx Complete Callback\r\n");
+	app_log_debug("Data in: %d\r\n", rxBuff[rxBuffDataSize]);
+	rxBuffDataSize++;
+	if (slaveMode == MODE_RECEIVING) {
+		HAL_I2C_Slave_Seq_Receive_IT(hi2c, rxBuff + rxBuffDataSize, 1, I2C_NEXT_FRAME);
 	}
 }
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if (GPIO_Pin == 2)
-	{
-		switch_val = !switch_val;
-		set_dirty();
-	}
-}
-//if i2c xmit times out re-init i2c phy
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim14)
-{
-	println("i2c timeout!");
-	if(HAL_I2C_Init(&hi2c1) != HAL_OK)
-	{
-		println("failed i2c reinit!");
-	}
+//Transfer complete (slave -> master)
 
+void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c) {
+	app_log_debug("Tx Complete callback\r\n");
+	txBuffDataSize = 0;
 }
 
+//Callback when error condition occurs
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c) {
+	app_log_debug("Error callback\r\n");
+	HAL_I2C_EnableListen_IT(hi2c);
+}
 
 const struct application Application = {
+	.init = init,
 	.run = run,
 };

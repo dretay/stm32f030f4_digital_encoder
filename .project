@@ -29,4 +29,11 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>rtt_logger</name>
+			<type>2</type>
+			<location>/Users/user/STM32CubeIDE/workspace_1.14.0/libraries/rtt_logger/src</location>
+		</link>
+	</linkedResources>
 </projectDescription>
