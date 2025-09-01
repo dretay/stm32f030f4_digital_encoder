@@ -35,5 +35,10 @@
 			<type>2</type>
 			<location>/Users/user/STM32CubeIDE/workspace_1.14.0/libraries/rtt_logger/src</location>
 		</link>
+		<link>
+			<name>stm32_timer-RELEASE</name>
+			<type>2</type>
+			<location>/Users/user/STM32CubeIDE/workspace_1.14.0/libraries/stm32_timer/src</location>
+		</link>
 	</linkedResources>
 </projectDescription>
