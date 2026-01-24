@@ -1,0 +1,6 @@
+r
+h
+loadfile build/Debug/stm32f0303f4_digital_encoder.elf
+r
+g
+q
