@@ -56,15 +56,25 @@ list(REMOVE_ITEM USER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/system_stm32f0xx.c
 )
 
+file(GLOB LOGGER_SOURCES
+    /Users/user/STM32CubeIDE/workspace_1.14.0/libraries/rtt_logger/src/*.c
+)
+file(GLOB STM32_TIMER_SOURCES
+    /Users/user/STM32CubeIDE/workspace_1.14.0/libraries/stm32_timer/release/src/*.c
+)
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${USER_SOURCES}
+    ${LOGGER_SOURCES}
+    ${STM32_TIMER_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc
+    /Users/user/STM32CubeIDE/workspace_1.14.0/libraries/rtt_logger/inc
+    /Users/user/STM32CubeIDE/workspace_1.14.0/libraries/stm32_timer/release/include
     # Add user defined include paths
 )
 
